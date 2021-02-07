@@ -1,0 +1,30 @@
+wandb_version: 1
+
+data-name:
+  value: cifar10
+data-path:
+  value: /cortex/data/images
+embed-dim:
+  value: -1
+eval-every:
+  value: 25
+gpu:
+  value: 0
+hyper-hid:
+  value: 100
+inner-lr:
+  value: 0.005
+la-steps:
+  value: 50
+lr:
+  value: 0.01
+n-hidden:
+  value: 3
+num-nodes:
+  value: 50
+num-steps:
+  value: 5000
+seed:
+  value: 13
+wd:
+  value: 0.001

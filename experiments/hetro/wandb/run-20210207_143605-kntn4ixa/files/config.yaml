@@ -1,0 +1,82 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.10.12
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.7.5
+batch_size:
+  desc: null
+  value: 64
+classes_per_user:
+  desc: null
+  value: 2
+data_name:
+  desc: null
+  value: cifar10
+data_path:
+  desc: null
+  value: data
+embed_dim:
+  desc: null
+  value: -1
+embed_lr:
+  desc: null
+  value: null
+eval_every:
+  desc: null
+  value: 10
+gpu:
+  desc: null
+  value: 1
+hyper_hid:
+  desc: null
+  value: 100
+inner_lr:
+  desc: null
+  value: 0.005
+la_lr:
+  desc: null
+  value: 0.01
+la_steps:
+  desc: null
+  value: 50
+la_wd:
+  desc: null
+  value: 5.0e-05
+lr:
+  desc: null
+  value: 0.01
+n_hidden:
+  desc: null
+  value: 3
+nkernels:
+  desc: null
+  value: 16
+num_nodes:
+  desc: null
+  value: 20
+num_steps:
+  desc: null
+  value: 5000
+optim:
+  desc: null
+  value: sgd
+save_path:
+  desc: null
+  value: fhn_hetro
+seed:
+  desc: null
+  value: 42
+spec_norm:
+  desc: null
+  value: false
+wandb:
+  desc: null
+  value: true
+wd:
+  desc: null
+  value: 0.001
