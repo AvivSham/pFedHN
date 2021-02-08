@@ -1,12 +1,12 @@
-import random
 import json
+import random
 from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
-import torchvision.transforms as transforms
 import torch.utils.data
-from torchvision.datasets import MNIST, CIFAR10, CIFAR100
+import torchvision.transforms as transforms
+from torchvision.datasets import CIFAR10, CIFAR100, MNIST
 
 
 def get_datasets(data_name, dataroot, normalize=True, val_size=10000):

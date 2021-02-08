@@ -1,22 +1,22 @@
 import argparse
+import json
 import logging
 import random
-import json
-from pathlib import Path
 from collections import defaultdict
-import wandb
+from pathlib import Path
 
 import numpy as np
 import torch
 import torch.utils.data
+import wandb
 from tqdm import trange
 
-from experiments.lookahead import Lookahead
-from experiments.utils import common_parser
-
-from experiments.hetro.local_layers.models import CNNHyper, CNNTarget, LocalLayer
+from experiments.hetro.local_layers.models import (CNNHyper, CNNTarget,
+                                                   LocalLayer)
 from experiments.hetro.local_layers.node import BaseNodesForLocal
-from experiments.utils import set_seed, set_logger, get_device, str2bool
+from experiments.lookahead import Lookahead
+from experiments.utils import (common_parser, get_device, set_logger, set_seed,
+                               str2bool)
 
 
 def eval_model(nodes, num_nodes, hnet, net, criteria, device, split):

@@ -2,9 +2,8 @@ import argparse
 import logging
 import random
 
-import torch
 import numpy as np
-
+import torch
 
 common_parser = argparse.ArgumentParser(add_help=False)
 common_parser.add_argument('--wandb', dest='wandb', action='store_true')

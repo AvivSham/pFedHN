@@ -1,23 +1,22 @@
 import argparse
-import logging
-import random
 import json
+import logging
 import os
+import random
+from collections import OrderedDict, defaultdict
 from pathlib import Path
-from collections import defaultdict
 
-import wandb
 import numpy as np
 import torch
 import torch.utils.data
+import wandb
 from tqdm import trange
 
-from experiments.lookahead import Lookahead
-from experiments.utils import common_parser
-
 from experiments.hetro.models import CNNHyper, CNNTargetLook
+from experiments.lookahead import Lookahead
 from experiments.node import BaseNodes
-from experiments.utils import set_seed, set_logger, get_device, str2bool
+from experiments.utils import (common_parser, get_device, set_logger, set_seed,
+                               str2bool)
 
 
 def eval_model(nodes, num_nodes, hnet, net, criteria, device, split):
@@ -86,7 +85,7 @@ def train(data_name: str, data_path: str, num_nodes: int, steps: int, optim: str
                         n_hidden=args.n_hidden, n_kernels=n_kernels, out_dim=100)
         net = CNNTargetLook(n_kernels=n_kernels, out_dim=100)
     else:
-        raise ValueError("choose data_name from ['mnist', 'cifar10', 'cifar100']")
+        raise ValueError("choose data_name from ['cifar10', 'cifar100']")
 
     hnet = hnet.to(device)
     net = net.to(device)
@@ -117,24 +116,34 @@ def train(data_name: str, data_path: str, num_nodes: int, steps: int, optim: str
 
         weights = hnet(torch.tensor([node_id], dtype=torch.long).to(device))
         net.load_state_dict(weights)
-        look_optim = Lookahead(
-            torch.optim.SGD(
-                net.parameters(), lr=args.inner_lr, momentum=.9, weight_decay=args.la_wd
-            ),
-            la_steps=args.la_steps, la_alpha=args.la_lr
+        # look_optim = Lookahead(
+        #     torch.optim.SGD(
+        #         net.parameters(), lr=args.inner_lr, momentum=.9, weight_decay=args.la_wd
+        #     ),
+        #     la_steps=args.la_steps, la_alpha=args.la_lr
+        # )
+
+        inner_optim = torch.optim.SGD(
+            net.parameters(), lr=args.inner_lr, momentum=.9, weight_decay=args.la_wd
         )
 
-        # look_optim = torch.optim.SGD(
-        #     net.parameters(), lr=args.inner_lr, momentum=.9, weight_decay=args.la_wd
-        # )
+        inner_state = OrderedDict({k: tensor.data for k, tensor in weights.items()})
+
+        # state = defaultdict(dict)
+        # # Cache the current optimizer parameters
+        # for group in inner_optim.param_groups:
+        #     for p in group['params']:
+        #         param_state = state[p]
+        #         param_state['cached_params'] = torch.zeros_like(p.data)
+        #         param_state['cached_params'].copy_(p.data)
+
         # theta = [p.detach().clone() for p in net.parameters()]
 
-    # NOTE: evaluation on sent model
+        # NOTE: evaluation on sent model
         with torch.no_grad():
             net.eval()
             batch = next(iter(nodes.test_loaders[node_id]))
             img, label = tuple(t.to(device) for t in batch)
-            # look_optim.zero_grad()
             pred = net(img)
             prvs_loss = criteria(pred, label)
             prvs_acc = pred.argmax(1).eq(label).sum().item() / len(label)
@@ -142,7 +151,7 @@ def train(data_name: str, data_path: str, num_nodes: int, steps: int, optim: str
 
         for i in range(args.la_steps):
             net.train()
-            look_optim.zero_grad()
+            inner_optim.zero_grad()
             optimizer.zero_grad()
 
             batch = next(iter(nodes.train_loaders[node_id]))
@@ -153,13 +162,26 @@ def train(data_name: str, data_path: str, num_nodes: int, steps: int, optim: str
             loss = criteria(pred, label)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(net.parameters(), 50)
-            _, grad_outputs = look_optim.step()
-            # look_optim.step()
+
+            inner_optim.step()
 
         optimizer.zero_grad()
 
+        final_state = net.state_dict()
+
+        delta_theta = OrderedDict({k: inner_state[k] - final_state[k] for k in weights.keys()})
+
+        # delta_theta = OrderedDict()
+        # Lookahead and cache the current optimizer parameters
+        # for group in inner_optim.param_groups:
+        #     for p in group['params']:
+        #         param_state = state[p]
+        #
+        #         # NOTE: update "grads"
+        #         delta_theta[p] = param_state['cached_params'] - p.data
+
         hnet_grads = torch.autograd.grad(
-            list(weights.values()), hnet.parameters(), grad_outputs=list(grad_outputs.values())
+            list(weights.values()), hnet.parameters(), grad_outputs=list(delta_theta.values())
         )
         # delta_theta = [p_i - p for p, p_i in zip(net.parameters(), theta) if p.requires_grad]
         # hnet_grads = torch.autograd.grad(
@@ -272,7 +294,7 @@ if __name__ == '__main__':
     ################################
     parser.add_argument("--n-hidden", type=int, default=3, help="num. hidden layers")
     parser.add_argument("--inner-lr", type=float, default=5e-3, help="learning rate for inner optimizer")
-    parser.add_argument("--la-lr", type=float, default=1e-2, help="lookahead learning rate")
+    # parser.add_argument("--la-lr", type=float, default=1e-2, help="lookahead learning rate")
     parser.add_argument("--lr", type=float, default=1e-2, help="learning rate")
     parser.add_argument("--wd", type=float, default=1e-3, help="weight decay")
     parser.add_argument("--la-wd", type=float, default=5e-5, help="lookahead weight decay")
@@ -285,7 +307,7 @@ if __name__ == '__main__':
     #############################
     #       General args        #
     #############################
-    parser.add_argument("--gpu", type=int, default=1, help="gpu device ID")
+    parser.add_argument("--gpu", type=int, default=0, help="gpu device ID")
     parser.add_argument("--eval-every", type=int, default=10, help="eval every X selected epochs")
     parser.add_argument("--save-path", type=str, default="fhn_hetro", help="dir path for output file")
     parser.add_argument("--seed", type=int, default=42, help="seed value")

@@ -1,5 +1,6 @@
-from experiments.hetro.dataset import gen_random_loaders
 import os
+
+from experiments.hetro.dataset import gen_random_loaders
 
 
 class BaseNodes:

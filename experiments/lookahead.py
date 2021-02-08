@@ -1,4 +1,4 @@
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
 
 import torch
 from torch.optim.optimizer import Optimizer
