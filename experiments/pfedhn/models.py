@@ -1,9 +1,5 @@
-import random
-from abc import abstractmethod
 from collections import OrderedDict
-from typing import List
 
-import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.nn.utils import spectral_norm
@@ -73,9 +69,9 @@ class CNNHyper(nn.Module):
         return weights
 
 
-class CNNTargetLook(nn.Module):
+class CNNTarget(nn.Module):
     def __init__(self, in_channels=3, n_kernels=16, out_dim=10):
-        super(CNNTargetLook, self).__init__()
+        super(CNNTarget, self).__init__()
 
         self.conv1 = nn.Conv2d(in_channels, n_kernels, 5)
         self.pool = nn.MaxPool2d(2, 2)

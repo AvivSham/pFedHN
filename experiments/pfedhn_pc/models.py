@@ -19,7 +19,7 @@ class LocalLayer(nn.Module):
         return self.layer(x)
 
 
-class CNNHyper(nn.Module):
+class CNNHyperPC(nn.Module):
     def __init__(
             self, n_nodes, embedding_dim, in_channels=3, out_dim=10, n_kernels=16, hidden_dim=100,
             spec_norm=False, n_hidden=1):
@@ -49,8 +49,6 @@ class CNNHyper(nn.Module):
         self.l1_bias = nn.Linear(hidden_dim, 120)
         self.l2_weights = nn.Linear(hidden_dim, 84 * 120)
         self.l2_bias = nn.Linear(hidden_dim, 84)
-        # self.l3_weights = nn.Linear(hidden_dim, self.out_dim * 84)
-        # self.l3_bias = nn.Linear(hidden_dim, self.out_dim)
 
         if spec_norm:
             self.c1_weights = spectral_norm(self.c1_weights)
@@ -61,8 +59,6 @@ class CNNHyper(nn.Module):
             self.l1_bias = spectral_norm(self.l1_bias)
             self.l2_weights = spectral_norm(self.l2_weights)
             self.l2_bias = spectral_norm(self.l2_bias)
-            # self.l3_weights = spectral_norm(self.l3_weights)
-            # self.l3_bias = spectral_norm(self.l3_bias)
 
     def forward(self, idx):
         emd = self.embeddings(idx)
@@ -77,14 +73,12 @@ class CNNHyper(nn.Module):
             "fc1.bias": self.l1_bias(features).view(-1),
             "fc2.weight": self.l2_weights(features).view(84, 120),
             "fc2.bias": self.l2_bias(features).view(-1),
-            # "fc3.weight": self.l3_weights(features).view(self.out_dim, 84),
-            # "fc3.bias": self.l3_bias(features).view(-1),
         }
         return weights
 
 
-class CNNTarget(nn.Module):
-    def __init__(self, in_channels=3, n_kernels=16, out_dim=10):
+class CNNTargetPC(nn.Module):
+    def __init__(self, in_channels=3, n_kernels=16):
         super().__init__()
 
         self.conv1 = nn.Conv2d(in_channels, n_kernels, 5)
@@ -92,7 +86,6 @@ class CNNTarget(nn.Module):
         self.conv2 = nn.Conv2d(n_kernels, 2 * n_kernels, 5)
         self.fc1 = nn.Linear(2 * n_kernels * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 84)
-        # self.fc3 = nn.Linear(84, out_dim)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
@@ -100,5 +93,4 @@ class CNNTarget(nn.Module):
         x = x.view(x.shape[0], -1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        # x = self.fc3(x)
         return x

@@ -1,4 +1,4 @@
-from experiments.hetro.dataset import gen_random_loaders
+from experiments.dataset import gen_random_loaders
 
 
 class BaseNodesForLocal:

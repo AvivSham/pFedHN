@@ -2,7 +2,7 @@ import argparse
 import json
 import logging
 import random
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -10,9 +10,8 @@ import torch
 import torch.utils.data
 from tqdm import trange
 
-from experiments.hetro.local_layers.models import (CNNHyper, CNNTarget,
-                                                   LocalLayer)
-from experiments.hetro.local_layers.node import BaseNodesForLocal
+from experiments.pfedhn.models import CNNHyper, CNNTarget
+from experiments.pfedhn.node import BaseNodes
 from experiments.utils import get_device, set_logger, set_seed, str2bool
 
 
@@ -29,7 +28,7 @@ def eval_model(nodes, num_nodes, hnet, net, criteria, device, split):
 
 
 @torch.no_grad()
-def evaluate(nodes: BaseNodesForLocal, num_nodes, hnet, net, criteria, device, split='test'):
+def evaluate(nodes: BaseNodes, num_nodes, hnet, net, criteria, device, split='test'):
     hnet.eval()
     results = defaultdict(lambda: defaultdict(list))
 
@@ -43,13 +42,12 @@ def evaluate(nodes: BaseNodesForLocal, num_nodes, hnet, net, criteria, device, s
         else:
             curr_data = nodes.train_loaders[node_id]
 
-        weights = hnet(torch.tensor([node_id], dtype=torch.long).to(device))
-        net.load_state_dict(weights)
-
         for batch_count, batch in enumerate(curr_data):
             img, label = tuple(t.to(device) for t in batch)
-            net_out = net(img)
-            pred = nodes.local_layers[node_id](net_out)
+
+            weights = hnet(torch.tensor([node_id], dtype=torch.long).to(device))
+            net.load_state_dict(weights)
+            pred = net(img)
             running_loss += criteria(pred, label).item()
             running_correct += pred.argmax(1).eq(label).sum().item()
             running_samples += len(label)
@@ -61,7 +59,7 @@ def evaluate(nodes: BaseNodesForLocal, num_nodes, hnet, net, criteria, device, s
     return results
 
 
-def train(data_name: str, data_path: str, classes_per_node: int, num_nodes: int,
+def train(data_name: str, data_path: str, classes_per_user: int, num_nodes: int,
           steps: int, inner_steps: int, optim: str, lr: float, inner_lr: float,
           embed_lr: float, wd: float, inner_wd: float, embed_dim: int, hyper_hid: int,
           n_hidden: int, n_kernels: int, bs: int, device, eval_every: int, save_path: Path,
@@ -70,29 +68,23 @@ def train(data_name: str, data_path: str, classes_per_node: int, num_nodes: int,
     ###############################
     # init nodes, hnet, local net #
     ###############################
-
-    nodes = BaseNodesForLocal(
-        data_name=data_name,
-        data_path=data_path,
-        n_nodes=num_nodes,
-        base_layer=LocalLayer,
-        layer_config={'n_input': 84, 'n_output': 10 if data_name == 'cifar10' else 100},
-        base_optimizer=torch.optim.SGD, optimizer_config=dict(lr=inner_lr, momentum=.9, weight_decay=inner_wd),
-        device=device,
-        batch_size=bs,
-        classes_per_node=classes_per_node,
-    )
+    nodes = BaseNodes(data_name, data_path, num_nodes, classes_per_node=classes_per_user,
+                      batch_size=bs)
 
     embed_dim = embed_dim
     if embed_dim == -1:
         logging.info("auto embedding size")
         embed_dim = int(1 + num_nodes / 4)
 
-    hnet = CNNHyper(
-        num_nodes, embed_dim, hidden_dim=hyper_hid, n_hidden=n_hidden,
-        n_kernels=n_kernels
-    )
-    net = CNNTarget(n_kernels=n_kernels)
+    if data_name == "cifar10":
+        hnet = CNNHyper(num_nodes, embed_dim, hidden_dim=hyper_hid, n_hidden=n_hidden, n_kernels=n_kernels)
+        net = CNNTarget(n_kernels=n_kernels)
+    elif data_name == "cifar100":
+        hnet = CNNHyper(num_nodes, embed_dim, hidden_dim=hyper_hid,
+                        n_hidden=n_hidden, n_kernels=n_kernels, out_dim=100)
+        net = CNNTarget(n_kernels=n_kernels, out_dim=100)
+    else:
+        raise ValueError("choose data_name from ['cifar10', 'cifar100']")
 
     hnet = hnet.to(device)
     net = net.to(device)
@@ -147,8 +139,7 @@ def train(data_name: str, data_path: str, classes_per_node: int, num_nodes: int,
             net.eval()
             batch = next(iter(nodes.test_loaders[node_id]))
             img, label = tuple(t.to(device) for t in batch)
-            net_out = net(img)
-            pred = nodes.local_layers[node_id](net_out)
+            pred = net(img)
             prvs_loss = criteria(pred, label)
             prvs_acc = pred.argmax(1).eq(label).sum().item() / len(label)
             net.train()
@@ -158,19 +149,17 @@ def train(data_name: str, data_path: str, classes_per_node: int, num_nodes: int,
             net.train()
             inner_optim.zero_grad()
             optimizer.zero_grad()
-            nodes.local_optimizers[node_id].zero_grad()
 
             batch = next(iter(nodes.train_loaders[node_id]))
             img, label = tuple(t.to(device) for t in batch)
 
-            net_out = net(img)
-            pred = nodes.local_layers[node_id](net_out)
+            pred = net(img)
 
             loss = criteria(pred, label)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(net.parameters(), 50)
+
             inner_optim.step()
-            nodes.local_optimizers[node_id].step()
 
         optimizer.zero_grad()
 
@@ -197,9 +186,7 @@ def train(data_name: str, data_path: str, classes_per_node: int, num_nodes: int,
 
         if step % eval_every == 0:
             last_eval = step
-            step_results, avg_loss, avg_acc, all_acc = eval_model(
-                nodes, num_nodes, hnet, net, criteria, device, split="test"
-            )
+            step_results, avg_loss, avg_acc, all_acc = eval_model(nodes, num_nodes, hnet, net, criteria, device, split="test")
             logging.info(f"\nStep: {step+1}, AVG Loss: {avg_loss:.4f},  AVG Acc: {avg_acc:.4f}")
 
             results['test_avg_loss'].append(avg_loss)
@@ -227,7 +214,10 @@ def train(data_name: str, data_path: str, classes_per_node: int, num_nodes: int,
         _, val_avg_loss, val_avg_acc, _ = eval_model(nodes, num_nodes, hnet, net, criteria, device, split="val")
         step_results, avg_loss, avg_acc, all_acc = eval_model(nodes, num_nodes, hnet, net, criteria, device, split="test")
         logging.info(f"\nStep: {step + 1}, AVG Loss: {avg_loss:.4f},  AVG Acc: {avg_acc:.4f}")
-        results[step + 1] = step_results
+
+        results['test_avg_loss'].append(avg_loss)
+        results['test_avg_acc'].append(avg_acc)
+
         if best_acc < val_avg_acc:
             best_acc = val_avg_acc
             best_step = step
@@ -247,32 +237,34 @@ def train(data_name: str, data_path: str, classes_per_node: int, num_nodes: int,
 
     save_path = Path(save_path)
     save_path.mkdir(parents=True, exist_ok=True)
-    with open(str(save_path / "results.json"), "w") as file:
+    with open(str(save_path / f"results_{inner_steps}_inner_steps_seed_{seed}.json"), "w") as file:
         json.dump(results, file, indent=4)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description="Federated Hypernetwork with local layers experiment"
+        description="Federated Hypernetwork with Lookahead experiment"
     )
 
     #############################
     #       Dataset Args        #
     #############################
+
     parser.add_argument(
-        "--data-name", type=str, default="cifar10", choices=['cifar10', 'cifar100'], help="data name"
+        "--data-name", type=str, default="cifar10", choices=['cifar10', 'cifar100'], help="dir path for MNIST dataset"
     )
-    parser.add_argument("--data-path", type=str, default='/cortex/data/images', help='data path')
-    parser.add_argument("--num-nodes", type=int, default=50)
-    parser.add_argument("--classes-per-node", type=int, default=2)
+    parser.add_argument("--data-path", type=str, default="data", help="dir path for MNIST dataset")
+    parser.add_argument("--classes_per_user", type=int, default=2, help="N classes assigned to each user")
+    parser.add_argument("--num-nodes", type=int, default=50, help="number of simulated nodes")
 
     ##################################
     #       Optimization args        #
     ##################################
-    parser.add_argument("--num-steps", type=int, default=2000)
+
+    parser.add_argument("--num-steps", type=int, default=5000)
+    parser.add_argument("--optim", type=str, default='sgd', choices=['adam', 'sgd'], help="learning rate")
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--inner-steps", type=int, default=50, help="number of inner steps")
-    parser.add_argument("--optim", type=str, default='sgd', choices=['adam', 'sgd'], help="learning rate")
 
     ################################
     #       Model Prop args        #
@@ -292,8 +284,8 @@ if __name__ == '__main__':
     #       General args        #
     #############################
     parser.add_argument("--gpu", type=int, default=0, help="gpu device ID")
-    parser.add_argument("--eval-every", type=int, default=10, help="eval every X selected epochs")
-    parser.add_argument("--save-path", type=str, default="cifar_local_layers", help="dir path for output file")
+    parser.add_argument("--eval-every", type=int, default=30, help="eval every X selected epochs")
+    parser.add_argument("--save-path", type=str, default="pfedhn_hetro_res", help="dir path for output file")
     parser.add_argument("--seed", type=int, default=42, help="seed value")
 
     args = parser.parse_args()
@@ -307,7 +299,7 @@ if __name__ == '__main__':
     train(
         data_name=args.data_name,
         data_path=args.data_path,
-        classes_per_node=args.classes_per_node,
+        classes_per_user=args.classes_per_user,
         num_nodes=args.num_nodes,
         steps=args.num_steps,
         inner_steps=args.inner_steps,

@@ -166,7 +166,7 @@ def gen_random_loaders(data_name, data_path, num_users, bz, classes_per_user):
     dataloaders = []
     datasets = get_datasets(data_name, data_path, normalize=True)
     for i, d in enumerate(datasets):
-        # we want the same partition for train/test/val
+        # ensure same partition for train/test/val
         if i == 0:
             cls_partitions = gen_classes_per_node(d, num_users, classes_per_user)
             loader_params['shuffle'] = True
