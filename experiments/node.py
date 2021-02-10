@@ -4,7 +4,14 @@ from experiments.hetro.dataset import gen_random_loaders
 
 
 class BaseNodes:
-    def __init__(self, data_name, data_path, n_nodes, batch_size=128, classes_per_node=2):
+    def __init__(
+            self,
+            data_name,
+            data_path,
+            n_nodes,
+            batch_size=128,
+            classes_per_node=2
+    ):
 
         self.data_name = data_name
         self.data_path = data_path

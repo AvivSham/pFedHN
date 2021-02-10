@@ -13,7 +13,7 @@ class BaseNodesForLocal:
         optimizer_config,
         device,
         batch_size=128,
-        classes_per_node=2,
+        classes_per_node=2
     ):
 
         self.data_name = data_name

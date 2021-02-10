@@ -20,7 +20,7 @@ def requirements():
 
 
 setup(
-      name='fhn',
+      name='pfedhn',
       version='1.0.0',  # Required
       description='Federated HyperNetworks',  # Optional
       long_description='',  # Optional

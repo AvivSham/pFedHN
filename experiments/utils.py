@@ -5,11 +5,6 @@ import random
 import numpy as np
 import torch
 
-common_parser = argparse.ArgumentParser(add_help=False)
-common_parser.add_argument('--wandb', dest='wandb', action='store_true')
-common_parser.add_argument('--no-wandb', dest='wandb', action='store_false')
-common_parser.set_defaults(wandb=True)
-
 
 def str2bool(v):
     if isinstance(v, bool):

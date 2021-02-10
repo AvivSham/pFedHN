@@ -1,15 +1,21 @@
-import json
 import random
 from collections import defaultdict
-from pathlib import Path
 
 import numpy as np
 import torch.utils.data
 import torchvision.transforms as transforms
-from torchvision.datasets import CIFAR10, CIFAR100, MNIST
+from torchvision.datasets import CIFAR10, CIFAR100
 
 
 def get_datasets(data_name, dataroot, normalize=True, val_size=10000):
+    """
+    get_datasets returns train/val/test data splits of CIFAR10/100 datasets
+    :param data_name: name of dataset, choose from [cifar10, cifar100]
+    :param dataroot: root to data dir
+    :param normalize: True/False to normalize the data
+    :param val_size: validation split size (in #samples)
+    :return: train_set, val_set, test_set (tuple of pytorch dataset/subset)
+    """
 
     if data_name =='cifar10':
         normalization = transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
@@ -48,6 +54,11 @@ def get_datasets(data_name, dataroot, normalize=True, val_size=10000):
 
 
 def get_num_classes_samples(dataset):
+    """
+    extracts info about certain dataset
+    :param dataset: pytorch dataset object
+    :return: dataset info number of classes, number of samples, list of labels
+    """
     # ---------------#
     # Extract labels #
     # ---------------#
@@ -66,42 +77,34 @@ def get_num_classes_samples(dataset):
     return num_classes, num_samples, data_labels_list
 
 
-def classes_per_node_dirichlet(dataset, num_users, num_gen_users, alpha):
-    num_classes, _, _ = get_num_classes_samples(dataset)
-
-    # create distribution for each client
-    prob_array = []
-    alpha_list = [[alpha if i >= num_gen_users else 0.1 * alpha for _ in range(num_classes)] for i in range(num_users)]
-    for i in range(num_users):
-        prob_array.append(np.random.dirichlet(alpha_list[i], 1).reshape(-1))
-
-    # normalizing
-    prob_array = np.array(prob_array)
-    prob_array /= prob_array.sum(axis=0)
-
-    class_partitions = defaultdict(list)
-    cls_list = [i for i in range(num_classes)]
-    for i in range(num_users):
-        class_partitions['class'].append(cls_list)
-        class_partitions['prob'].append(prob_array[i, :])
-
-    return class_partitions
-
-
 def gen_classes_per_node(dataset, num_users, classes_per_user=2, high_prob=0.6, low_prob=0.4):
-
+    """
+    creates the data distribution of each client
+    :param dataset: pytorch dataset object
+    :param num_users: number of clients
+    :param classes_per_user: number of classes assigned to each client
+    :param high_prob: highest prob sampled
+    :param low_prob: lowest prob sampled
+    :return: dictionary mapping between classes and proportions, each entry refers to other client
+    """
     num_classes, num_samples, _ = get_num_classes_samples(dataset)
 
     # -------------------------------------------#
     # Divide classes + num samples for each user #
     # -------------------------------------------#
-    # assert (classes_per_user * num_users) % num_classes == 0, "equal classes appearance is needed"
-    count_per_class = (classes_per_user * num_users) // num_classes + 1
+    assert (classes_per_user * num_users) % num_classes == 0, "equal classes appearance is needed"
+    count_per_class = (classes_per_user * num_users) // num_classes
     class_dict = {}
     for i in range(num_classes):
+        # sampling alpha_i_c
         probs = np.random.uniform(low_prob, high_prob, size=count_per_class)
+        # normalizing
         probs_norm = (probs / probs.sum()).tolist()
         class_dict[i] = {'count': count_per_class, 'prob': probs_norm}
+
+    # -------------------------------------#
+    # Assign each client with data indexes #
+    # -------------------------------------#
     class_partitions = defaultdict(list)
     for i in range(num_users):
         c = []
@@ -116,7 +119,13 @@ def gen_classes_per_node(dataset, num_users, classes_per_user=2, high_prob=0.6, 
 
 
 def gen_data_split(dataset, num_users, class_partitions):
-
+    """
+    divide data indexes for each client based on class_partition
+    :param dataset: pytorch dataset object (train/val/test)
+    :param num_users: number of clients
+    :param class_partitions: proportion of classes per client
+    :return: dictionary mapping client to its indexes
+    """
     num_classes, num_samples, data_labels_list = get_num_classes_samples(dataset)
 
     # -------------------------- #
@@ -144,15 +153,27 @@ def gen_data_split(dataset, num_users, class_partitions):
 
 
 def gen_random_loaders(data_name, data_path, num_users, bz, classes_per_user):
+    """
+    generates train/val/test loaders of each client
+    :param data_name: name of dataset, choose from [cifar10, cifar100]
+    :param data_path: root path for data dir
+    :param num_users: number of clients
+    :param bz: batch size
+    :param classes_per_user: number of classes assigned to each client
+    :return: train/val/test loaders of each client, list of pytorch dataloaders
+    """
     loader_params = {"batch_size": bz, "shuffle": False, "pin_memory": True, "num_workers": 0}
     dataloaders = []
     datasets = get_datasets(data_name, data_path, normalize=True)
     for i, d in enumerate(datasets):
+        # we want the same partition for train/test/val
         if i == 0:
             cls_partitions = gen_classes_per_node(d, num_users, classes_per_user)
             loader_params['shuffle'] = True
         usr_subset_idx = gen_data_split(d, num_users, cls_partitions)
+        # create subsets for each client
         subsets = list(map(lambda x: torch.utils.data.Subset(d, x), usr_subset_idx))
+        # create dataloaders from subsets
         dataloaders.append(list(map(lambda x: torch.utils.data.DataLoader(x, **loader_params), subsets)))
 
     return dataloaders
