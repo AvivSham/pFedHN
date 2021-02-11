@@ -266,7 +266,6 @@ if __name__ == '__main__':
     )
     parser.add_argument("--data-path", type=str, default='/cortex/data/images', help='data path')
     parser.add_argument("--num-nodes", type=int, default=50)
-    parser.add_argument("--classes-per-node", type=int, default=2)
 
     ##################################
     #       Optimization args        #
@@ -305,6 +304,11 @@ if __name__ == '__main__':
     set_seed(args.seed)
 
     device = get_device(gpus=args.gpu)
+
+    if args.data_name == 'cifar10':
+        args.classes_per_node = 2
+    else:
+        args.classes_per_node = 10
 
     train(
         data_name=args.data_name,
