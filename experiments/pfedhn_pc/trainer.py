@@ -264,7 +264,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--data-name", type=str, default="cifar10", choices=['cifar10', 'cifar100'], help="data name"
     )
-    parser.add_argument("--data-path", type=str, default='/cortex/data/images', help='data path')
+    parser.add_argument("--data-path", type=str, default='data', help='data path')
     parser.add_argument("--num-nodes", type=int, default=50)
 
     ##################################
