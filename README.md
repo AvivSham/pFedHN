@@ -3,7 +3,7 @@
 #### Installation
 - Create a virtual environment with conda/virtualenv
 - Clone the repo
-- Run: ```cd <PATH_TO_THE CLONED REPO>```
+- Run: ```cd <PATH_TO_THE_CLONED_REPO>```
 - Run: ```pip install -e .``` to install necessary packages and path links.
 
 ---------
