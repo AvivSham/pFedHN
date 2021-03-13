@@ -131,3 +131,4 @@ dmypy.json
 data/
 .idea/
 wandb/
+.DS_Store
