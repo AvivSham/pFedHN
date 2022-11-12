@@ -92,8 +92,8 @@ def gen_classes_per_node(dataset, num_users, classes_per_user=2, high_prob=0.6, 
     # -------------------------------------------#
     # Divide classes + num samples for each user #
     # -------------------------------------------#
-    assert (classes_per_user * num_users) % num_classes == 0, "equal classes appearance is needed"
-    count_per_class = (classes_per_user * num_users) // num_classes
+    # assert (classes_per_user * num_users) % num_classes == 0, "equal classes appearance is needed"
+    count_per_class = (classes_per_user * num_users) // num_classes + 1
     class_dict = {}
     for i in range(num_classes):
         # sampling alpha_i_c
