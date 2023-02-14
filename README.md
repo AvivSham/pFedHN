@@ -29,10 +29,12 @@ This is an official implementation of ***Personalized Federated Learning using H
 If you find pFedHN to be useful in your own research, please consider citing the following paper:
 
 ```bib
-@article{shamsian2021personalized,
-  title={Personalized Federated Learning using Hypernetworks},
+@inproceedings{shamsian2021personalized,
+  title={Personalized federated learning using hypernetworks},
   author={Shamsian, Aviv and Navon, Aviv and Fetaya, Ethan and Chechik, Gal},
-  journal={arXiv preprint arXiv:2103.04628},
-  year={2021}
+  booktitle={International Conference on Machine Learning},
+  pages={9489--9502},
+  year={2021},
+  organization={PMLR}
 }
 ```
