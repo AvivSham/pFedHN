@@ -1,4 +1,4 @@
-## Personalized Federated Learning using Hypernetworks
+## Personalized Federated Learning using Hypernetworks [ICML 2021]
 This is an official implementation of ***Personalized Federated Learning using Hypernetworks*** paper. [[Link]](https://arxiv.org/abs/2103.04628)
 
 ![](resources/pfedhn_arch.png)
